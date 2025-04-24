@@ -5,6 +5,7 @@ import {uploadOnCloudinary} from '../utils/cloudinary.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 const generateAccessAndRefreshToken= async (userId) => {
     try {
         const user= await User.findById(userId);
@@ -121,8 +122,8 @@ const loginUser= asyncHandler(async (req, res) => {
 const logoutUser= asyncHandler(async (req, res) => {
     await User.findByIdAndUpdate(req.user._id, 
         {
-            $set: {
-                refreshToken: undefined
+            $unset: {
+                refreshToken: 1
             }
         },
         {
@@ -147,7 +148,7 @@ const logoutUser= asyncHandler(async (req, res) => {
 const refreshAccessToken= asyncHandler(async (req, res) => {
     try {
         const incomingRefreshToken= req.cookies.refreshToken || req.body.refreshToken
-    
+        
         if(!incomingRefreshToken){
             throw new apiError(401, "Unauthorized request")
         }
@@ -156,11 +157,11 @@ const refreshAccessToken= asyncHandler(async (req, res) => {
             incomingRefreshToken,
             process.env.REFRESH_TOKEN_SECRET) 
     
-        const user=await User.findById(decodedToken?._id).select("-password -refreshToken")
+        const user=await User.findById(decodedToken?._id).select("-password ")
         if(!user){
             throw new apiError(401, "Invalid refresh token")
         }   
-    
+        
         if(incomingRefreshToken !== user.refreshToken){
             throw new apiError(401, "Refresh Token is expired or invalid")
         }
@@ -187,9 +188,11 @@ const refreshAccessToken= asyncHandler(async (req, res) => {
 
 const changeCurrentPassword= asyncHandler(async (req, res) => {
     const {oldPassword, newPassword}= req.body;
+    console.log(req.body);
+    
     const user= await User.findById(req.user?._id)
 
-    const isPasswordCorrect= user.isPasswordCorrect(oldPassword)
+    const isPasswordCorrect=await user.isPasswordCorrect(oldPassword)
 
     if(!isPasswordCorrect){
         throw new apiError(400, "Invalid password")
@@ -204,6 +207,7 @@ const changeCurrentPassword= asyncHandler(async (req, res) => {
 })
 
 const getCurrentUser= asyncHandler(async (req, res) => {
+    const user= await User.findById(req.user?._id).select("-password -refreshToken -__v");
     if(!user){
         throw new apiError(404, "User not found");
     }
@@ -216,6 +220,8 @@ const getCurrentUser= asyncHandler(async (req, res) => {
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
     const {fullName, email, userName} = req.body;
+    console.log(req.body);
+    
     if (!(fullName && email && userName)) {
         throw new apiError(400, "All fields are required");
     }
@@ -227,7 +233,10 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
                 userName
             }
         },
-        new true
+        {
+            new : true
+        }
+        
     ).select("-password -refreshToken -__v");
     return res.status(200)
     .json(
@@ -290,15 +299,15 @@ const updateUserCoverImage= asyncHandler(async (req, res) => {
 )
 
 const getUserChannelProfile= asyncHandler(async (req, res) => {
-    const {userName}= req.params;
-    if(!userName?.trim()){
+    const {username}= req.params;
+    if(!username){
         throw new apiError(400, "Username is required");
     }
 
     const channel= await User.aggregate([
         {
             $match : {
-                userName: userName.toLowerCase()
+                userName: username.toLowerCase()
             }
         },
         {
@@ -325,13 +334,13 @@ const getUserChannelProfile= asyncHandler(async (req, res) => {
                 channelsSubscribedToCount:{
                     $size: "$subscribedTo"
                 },
-                isSubscribed:{
-                    if:{
-                        $in:[req.user._id, "$subscribers.subscriber"],
+                isSubscribed: {
+                    $cond: {
+                        if: { $in: [req.user._id, "$subscribers.subscriber"] },
                         then: true,
                         else: false
                     }
-                }
+                }                
             }
         },
         {
