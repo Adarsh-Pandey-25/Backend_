@@ -6,6 +6,8 @@ import { ApiResponse } from '../utils/ApiResponse.js';
 import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
+
+
 const generateAccessAndRefreshToken= async (userId) => {
     try {
         const user= await User.findById(userId);
@@ -418,6 +420,8 @@ const getWatchHistory= asyncHandler(async (req, res) => {
         new ApiResponse(200, user[0]?.watchHistory || [], "Watch History fetched Successfully")
     )   
 })
+
+
 
 export {registerUser,
         loginUser,
