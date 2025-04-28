@@ -40,6 +40,12 @@ const getAllVideos = asyncHandler(async (req, res) => {
             { description: { $regex: query, $options: "i" } },
         ]
     }
+    if (req.user.role === "user") {
+        filter.isPublished = true
+    }
+    if (req.user.role === "admin") {
+        filter.isPublished = { $ne: false }
+    }
     if (userId) {
         if (!isValidObjectId(userId)) {
             throw new apiError(400, "Invalid user id")
