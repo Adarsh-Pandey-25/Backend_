@@ -15,12 +15,17 @@ ffmpeg.setFfmpegPath(ffmpegStatic)
 ffmpeg.setFfprobePath(ffprobeStatic.path)
 
 const getVideoDuration = (filePath) => {
-    return new Promise((resolve, reject) => {
-        ffmpeg.ffprobe(filePath, (err, metadata) => {
-            if (err) return reject(err)
-            resolve(metadata.format.duration)
+    try {
+        return new Promise((resolve, reject) => {
+            ffmpeg.ffprobe(filePath, (err, metadata) => {
+                if (err) return reject(err)
+                resolve(metadata.format.duration)
+            })
         })
-    })
+    } catch (error) {
+        console.error("Error getting video duration:", error)
+        throw new apiError(500, "Error getting video duration")
+    }
 }
 
 
@@ -76,13 +81,12 @@ const getAllVideos = asyncHandler(async (req, res) => {
 
 const publishAVideo = asyncHandler(async (req, res) => {
     const { title, description} = req.body
-    console.log(req.body);
-    console.log(req.files);
-    
+    if(req.files.videoFile== null || req.files.thumbnail== null){
+        throw new apiError(400, "Video file and thumbnail are required")
+    }
     const uploadedVideo=await uploadOnCloudinary(req.files.videoFile[0].path, "video")
     const uploadedThumbnail=await uploadOnCloudinary(req.files.thumbnail[0].path, "image")
     const duration = await getVideoDuration(req.files.videoFile[0].path)
-    console.log(duration);
     
     const video = await Video.create({
         title,
